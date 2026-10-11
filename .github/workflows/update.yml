@@ -1,0 +1,84 @@
+name: CFnew YX Pipeline
+
+on:
+  schedule:
+    - cron: '7,37 * * * *'   # 每 30 分钟（错开整点高峰，减少 GitHub 排队延迟）
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: cfnew-yx-pipeline
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run pipeline (collect + verify + build)
+        run: python pipeline.py
+        env:
+          # ====== 以下全部可选，不配置就用内置默认值 ======
+          # 候选 IP 来源（逗号分隔）
+          # IP_SOURCES: "https://cf.090227.xyz/ct?ips=16&port=443"
+          # 静态优选域名池（逗号分隔）
+          # EDGE_DOMAINS: "www.visa.com.sg,www.wto.org"
+          MAX_NODES: "60"
+          CHECK_CONCURRENCY: "32"
+          # ====== 可选：直接推送到你的 CFnew 实例（需面板开启 ae=yes）======
+          CFNEW_BASE: ${{ secrets.CFNEW_BASE }}   # 如 https://xxx.pages.dev
+          CFNEW_UUID: ${{ secrets.CFNEW_UUID }}   # UUID 或自定义路径(d变量)
+          CFNEW_PUSH_MODE: "replace"
+          # ====== 可选：CLASH 家宽订阅增强构建（保留原版全部功能 + 存活预验证）======
+          JK_ENABLE: ${{ vars.JK_ENABLE }}        # 仓库 Variables 里设 yes 开启
+          JK_TOKEN: ${{ secrets.JK_TOKEN }}       # 可选, 自定义订阅路径 token（不设则由 BASE+UUID 派生）
+
+      - name: Ensure GitHub Pages is enabled (one-time auto setup)
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/pages")
+          echo "Pages API status: $code"
+          if [ "$code" = "404" ]; then
+            echo "首次运行: 自动启用 GitHub Pages (source = GitHub Actions)"
+            curl -sS -X POST \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d '{"build_type":"workflow"}' \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/pages" || true
+            sleep 10
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'public'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Show result
+        run: |
+          echo "仪表盘: ${{ steps.deployment.outputs.page_url }}"
+          echo "yxURL : ${{ steps.deployment.outputs.page_url }}nodes.txt"

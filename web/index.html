@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>cfnew-yx-gate · CFnew 优选IP流水线</title>
+<style>
+  :root { --bg:#0a0e14; --panel:#101722; --line:#1d2a3a; --cyan:#00f0ff; --dim:#5c7a99; --txt:#c9e3f5; --ok:#2ee6a8; --warn:#ffb454; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--txt); font-family: "Courier New", Consolas, monospace; padding: 24px 16px 60px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { color: var(--cyan); font-size: 22px; letter-spacing: 2px; margin-bottom: 4px; }
+  .sub { color: var(--dim); font-size: 12px; margin-bottom: 20px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 10px; margin-bottom: 20px; }
+  .card { background: var(--panel); border: 1px solid var(--line); padding: 14px; }
+  .card .v { color: var(--cyan); font-size: 26px; font-weight: bold; }
+  .card .k { color: var(--dim); font-size: 11px; margin-top: 4px; }
+  .urlbox { background: var(--panel); border: 1px solid var(--cyan); padding: 14px; margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .urlbox code { color: var(--ok); word-break: break-all; flex: 1; font-size: 13px; }
+  .urlbox button { background: transparent; border: 1px solid var(--cyan); color: var(--cyan); padding: 6px 14px; cursor: pointer; font-family: inherit; }
+  .urlbox button:hover { background: var(--cyan); color: #000; }
+  .hint { color: var(--dim); font-size: 12px; width: 100%; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { color: var(--cyan); text-align: left; border-bottom: 1px solid var(--cyan); padding: 8px 6px; font-size: 12px; }
+  td { border-bottom: 1px solid var(--line); padding: 7px 6px; }
+  td.lat { color: var(--ok); }
+  .tag { color: var(--warn); }
+  .note { color: var(--dim); font-size: 11px; margin-top: 16px; line-height: 1.7; }
+  h2 { color: var(--cyan); font-size: 15px; margin: 24px 0 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>▍CFNEW-YX-GATE</h1>
+  <div class="sub" id="gen">—</div>
+
+  <div class="urlbox">
+    <code id="suburl">—</code>
+    <button onclick="copyUrl()">复制</button>
+    <div class="hint">把这个地址填进 CFnew 面板「优选IP来源URL (yxURL)」，保存一次，之后节点自动更新。</div>
+  </div>
+
+  <div class="cards" id="cards"></div>
+
+  <h2>// 优选 IP 节点</h2>
+  <table>
+    <thead><tr><th>#</th><th>地址</th><th>名称</th><th>机房</th><th>来源</th><th>RTT</th></tr></thead>
+    <tbody id="ipbody"></tbody>
+  </table>
+
+  <h2>// 优选域名</h2>
+  <table>
+    <thead><tr><th>#</th><th>域名</th><th>机房</th><th>RTT</th></tr></thead>
+    <tbody id="dombody"></tbody>
+  </table>
+
+  <div class="note" id="note"></div>
+</div>
+
+<script>
+const DATA = __DATA_JSON__;
+
+const subUrl = location.origin + location.pathname.replace(/index\.html$/, '') + 'nodes.txt';
+document.getElementById('suburl').textContent = subUrl;
+document.getElementById('gen').textContent = '生成时间: ' + DATA.generated_at + ' · 每 30 分钟自动更新';
+
+function copyUrl() {
+  navigator.clipboard.writeText(subUrl).then(() => alert('已复制: ' + subUrl));
+}
+
+const s = DATA.stats || {};
+const cardDefs = [
+  [s.ip_published, '发布 IP 节点'],
+  [s.domain_ok, '优选域名'],
+  [s.colos, '覆盖机房'],
+  [s.candidates, '候选总数'],
+  [s.checked, '已验证'],
+  [(s.duration_s || 0) + 's', '流水线耗时'],
+];
+document.getElementById('cards').innerHTML = cardDefs.map(
+  ([v, k]) => `<div class="card"><div class="v">${v ?? '—'}</div><div class="k">${k}</div></div>`).join('');
+
+document.getElementById('ipbody').innerHTML = (DATA.ip_nodes || []).map((n, i) =>
+  `<tr><td>${i + 1}</td><td>${n.ip}:${n.port}</td><td>${n.name}</td><td>${n.colo}</td>` +
+  `<td class="tag">${n.tag}</td><td class="lat">${n.latency_ms}ms</td></tr>`).join('') ||
+  '<tr><td colspan="6">本轮无可用 IP 节点</td></tr>';
+
+document.getElementById('dombody').innerHTML = (DATA.domain_nodes || []).map((n, i) =>
+  `<tr><td>${i + 1}</td><td>${n.ip}:${n.port}</td><td>${n.colo}</td><td class="lat">${n.latency_ms}ms</td></tr>`).join('') ||
+  '<tr><td colspan="4">本轮无可用域名</td></tr>';
+
+document.getElementById('note').textContent = '说明: ' + (s.note || '') +
+  '。数据源: 公开优选 API + Cloudflare 官方网段采样; 验证方式: TCP + TLS + /cdn-cgi/trace 三段验证 (GitHub Runner 直测, 无需额外 Worker)。';
+</script>
+</body>
+</html>
