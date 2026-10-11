@@ -19,29 +19,6 @@
 
 ---
 
-## 当前部署实例（2026-10-12 实际运行状态）
-
-| 项目 | 值 |
-| :-- | :-- |
-| GitHub 仓库 | `zmqdyx163/cfnew-yx-gate-6162` |
-| 仪表盘 | https://yx.my2d.eu.cc/ （自定义域名，DNS-only CNAME → GitHub Pages） |
-| 节点清单 `yxURL` | https://yx.my2d.eu.cc/nodes.txt （已填入 CFnew 面板） |
-| CFnew 面板 | `https://zmq.kdns.fr/{UUID}`（Pages 项目 `cfnew-auto`，KV 绑定 `c`） |
-| 家宽模块 `jk_builder` | **已关闭**（仓库 Variable `JK_ENABLE=no`；曾开启验证跑通：64 候选 → 32 存活 → 家宽订阅 `jk/c6ab9c0310805c1e/clash.yaml`；重新开启改回 `yes` 即可） |
-| 定时流水线 | 每 30 分钟（`:07/:37` 分触发），GitHub 高峰期可能延迟几分钟 |
-
-**运维一键脚本**：`enable_workflow.bat`（双击）——仓库 60 天无 commit 会自动暂停定时任务，
-脚本自动检查状态 → 恢复启用 → 触发一次运行验证结果。等价的 API 操作：
-`PUT /repos/{owner}/{repo}/actions/workflows/update.yml/enable`。
-
-**CFnew 面板侧必查项（yxURL 断供时按序排查）**：
-
-1. 面板 `yx`（静态优选IP列表）必须**为空**——`yx` 非空会短路 `yxURL` 分支，两者互斥
-2. 面板「GitHub优选」开关（配置键 `egi`）必须为**开启**，否则 yxURL 分支被跳过
-3. 改完配置等约 1 分钟（isolate 30s 缓存 + KV 跨节点传播）再拉订阅
-
----
-
 ## 架构（数据流向）
 
 ```
